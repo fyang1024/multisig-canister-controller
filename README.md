@@ -6,7 +6,7 @@ The multisig canister controller allows any of the M members to
 * start canister
 * stop canister
 * delete canister, and
-* upgrade canister only if N out of M members agree
+* upgrade canister only if M members agree
 
 ## Running the project locally
 
