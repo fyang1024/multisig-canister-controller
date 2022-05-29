@@ -5,12 +5,15 @@ import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Buffer "mo:base/Buffer";
 import TrieMap "mo:base/TrieMap";
+import Cycles "mo:base/ExperimentalCycles";
 
 shared(msg) actor class () = self {
 
     private var owners: [Principal] = [];
     private var minimal_sigs: Nat = 0;
     private var canisters = TrieMap.TrieMap<IC.canister_id, Buffer.Buffer<Proposal.Proposal>>(Principal.equal, Principal.hash);
+
+    private let CYCLE_LIMIT = 1_000_000_000_000;
 
     public func init(o: [Principal], m: Nat) {
         assert(m > 0 and m <= o.size());
@@ -37,6 +40,7 @@ shared(msg) actor class () = self {
 
     public shared (msg) func create_canister() : async IC.canister_id {
         assert(is_one_of_owners(msg.caller));
+        Cycles.add(CYCLE_LIMIT); 
         let settings = {
             freezing_threshold = null;
             controllers = ?[Principal.fromActor(self)];
@@ -84,15 +88,16 @@ shared(msg) actor class () = self {
         content: ?Blob
     ) {
         assert(canister_exists(canister_id));
-        // make sure it's either the first proposal or last proposal has been executed
-        assert(first_proposal_or_last_proposal_executed(canister_id));
+        // make sure it's either the first proposal or last proposal has been executed or disapproved
+        assert(no_proposal(canister_id) or last_proposal_executed_or_disapproved(canister_id));
         let proposal = Proposal.create_proposal(
             get_next_proposal_seq(canister_id),
             msg.caller,
             proposal_type,
             canister_id,
             content,
-            minimal_sigs
+            minimal_sigs,
+            owners.size()
         );
         switch (canisters.get(canister_id)) {
             case null {};
@@ -112,6 +117,14 @@ shared(msg) actor class () = self {
         update_last_proposal(canister_id, new_proposal);
     };
 
+    public shared (msg) func vote_against_last_proposal(canister_id: IC.canister_id) {
+        assert(is_one_of_owners(msg.caller));
+        assert(canister_exists(canister_id));
+        assert(last_proposal_pending(canister_id));
+        let new_proposal = Proposal.disapprove_proposal(msg.caller, last_proposal(canister_id));
+        update_last_proposal(canister_id, new_proposal);
+    };
+
     private func is_one_of_owners(p: Principal): Bool {
         switch(Array.find(owners, func (a: Principal): Bool { Principal.equal(a, p) })) {
             case (null) { false };
@@ -126,9 +139,15 @@ shared(msg) actor class () = self {
         }
     };
 
-    private func first_proposal_or_last_proposal_executed(canister_id: IC.canister_id): Bool {
+    private func no_proposal(canister_id: IC.canister_id): Bool {
         let ?proposals = canisters.get(canister_id);
-        proposals.size() == 0 or proposals.get(proposals.size() - 1).status == #executed
+        proposals.size() == 0
+    };
+
+    private func last_proposal_executed_or_disapproved(canister_id: IC.canister_id): Bool {
+        let ?proposals = canisters.get(canister_id);
+        let last_proposal = proposals.get(proposals.size() - 1);
+        last_proposal.status == #executed or last_proposal.status == #disapproved
     };
 
     private func get_next_proposal_seq(canister_id: IC.canister_id): Nat {
