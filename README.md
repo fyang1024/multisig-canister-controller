@@ -21,3 +21,6 @@ dfx deploy
 ```
 
 Once the job completes, your application will be available at `http://localhost:8000?canisterId={asset_canister_id}`.
+
+The canister is deployed to mainnet now. Check it out here
+https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app/?id=tvzis-7iaaa-aaaag-aaj2a-cai
