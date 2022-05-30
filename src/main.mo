@@ -39,7 +39,7 @@ shared(msg) actor class () = self {
     };
 
     public shared (msg) func create_canister() : async IC.canister_id {
-        assert(is_one_of_owners(msg.caller));
+        assert(is_one_of_owners(msg.caller)); // any of the owners can always create a canister
         Cycles.add(CYCLE_LIMIT); 
         let settings = {
             freezing_threshold = null;
@@ -54,7 +54,7 @@ shared(msg) actor class () = self {
     };
 
     public shared (msg) func install_code(code: Blob, canister_id: IC.canister_id): async () {
-        assert(is_one_of_owners(msg.caller));
+        check_before_operation(canister_id, #installCode, msg.caller);
         let ic: IC.Self = actor("aaaaa-aa");
         await ic.install_code({ 
             arg = [];
@@ -65,37 +65,39 @@ shared(msg) actor class () = self {
     };
 
     public shared (msg) func start_canister(canister_id: IC.canister_id): async () {
-        assert(is_one_of_owners(msg.caller));
+        check_before_operation(canister_id, #startCanister, msg.caller);
         let ic: IC.Self = actor("aaaaa-aa");
         await ic.start_canister({ canister_id = canister_id });
     };
 
     public shared (msg) func stop_canister(canister_id: IC.canister_id): async () {
-        assert(is_one_of_owners(msg.caller));
+        check_before_operation(canister_id, #stopCanister, msg.caller);
         let ic: IC.Self = actor("aaaaa-aa");
         await ic.stop_canister({ canister_id = canister_id });
     };
 
     public shared (msg) func delete_canister(canister_id: IC.canister_id): async () {
-        assert(is_one_of_owners(msg.caller));
+        check_before_operation(canister_id, #deleteCanister, msg.caller);
         let ic: IC.Self = actor("aaaaa-aa");
         await ic.delete_canister({ canister_id = canister_id });
     };
 
     public shared (msg) func propose(
-        proposal_type: Proposal.ProposalType, 
+        proposal_type: Proposal.ProposalType,
+        permission_change: ?Proposal.PermissionChange,
+        canister_operation: Proposal.CanisterOperation, 
         canister_id: IC.canister_id, 
-        content: ?Blob
+        code: ?Blob
     ) {
-        assert(canister_exists(canister_id));
-        // make sure it's either the first proposal or last proposal has been executed or disapproved
-        assert(no_proposal(canister_id) or last_proposal_executed_or_disapproved(canister_id));
+        check_before_propose(canister_id);
         let proposal = Proposal.create_proposal(
+            canister_id,
             get_next_proposal_seq(canister_id),
             msg.caller,
             proposal_type,
-            canister_id,
-            content,
+            permission_change,
+            canister_operation,
+            code,
             minimal_sigs,
             owners.size()
         );
@@ -108,21 +110,42 @@ shared(msg) actor class () = self {
     };
 
     public shared (msg) func vote_for_last_proposal(canister_id: IC.canister_id) {
-        assert(is_one_of_owners(msg.caller));
-        assert(canister_exists(canister_id));
-        assert(last_proposal_pending(canister_id));
+        check_before_vote(canister_id, msg.caller);
         let new_proposal = Proposal.approve_propsal(msg.caller, last_proposal(canister_id));
-        // TODO execute the proposal if the new_proposal's status is approved,
-        // TODO and then update the status to be executed
+        // TODO execute the proposal if 
+        //      1. the new_proposal's status is approved, and
+        //      2. the new_proposal is an #operation proposal
         update_last_proposal(canister_id, new_proposal);
     };
 
     public shared (msg) func vote_against_last_proposal(canister_id: IC.canister_id) {
-        assert(is_one_of_owners(msg.caller));
-        assert(canister_exists(canister_id));
-        assert(last_proposal_pending(canister_id));
+        check_before_vote(canister_id, msg.caller);
         let new_proposal = Proposal.disapprove_proposal(msg.caller, last_proposal(canister_id));
         update_last_proposal(canister_id, new_proposal);
+    };
+
+    private func check_before_operation(
+        canister_id: IC.canister_id, 
+        canister_operation: Proposal.CanisterOperation,
+        caller: Principal
+    ) {
+        assert(canister_exists(canister_id));
+        assert(no_proposal(canister_id) or not last_proposal_pending(canister_id));
+        assert(not requires_multisig(canister_id, canister_operation));
+        assert(is_one_of_owners(msg.caller));
+    };
+
+    private func check_before_vote(canister_id: IC.canister_id, caller: Principal) {
+        assert(canister_exists(canister_id));
+        assert(is_one_of_owners(msg.caller));
+        assert(last_proposal_pending(canister_id));
+    };
+
+    private func check_before_propose(canister_id: IC.canister_id) {
+        assert(canister_exists(canister_id));
+        assert(is_one_of_owners(msg.caller));
+        // make sure either there is no proposal yet, or last proposal is not pending
+        assert(no_proposal(canister_id) or not last_proposal_pending(canister_id));
     };
 
     private func is_one_of_owners(p: Principal): Bool {
@@ -144,12 +167,6 @@ shared(msg) actor class () = self {
         proposals.size() == 0
     };
 
-    private func last_proposal_executed_or_disapproved(canister_id: IC.canister_id): Bool {
-        let ?proposals = canisters.get(canister_id);
-        let last_proposal = proposals.get(proposals.size() - 1);
-        last_proposal.status == #executed or last_proposal.status == #disapproved
-    };
-
     private func get_next_proposal_seq(canister_id: IC.canister_id): Nat {
         let ?proposals = canisters.get(canister_id);
         proposals.size()
@@ -169,5 +186,15 @@ shared(msg) actor class () = self {
         let ?proposals = canisters.get(canister_id);
         ignore proposals.removeLast();
         proposals.add(proposal);
-    }
+    };
+
+    private func requires_multisig(canister_id: IC.canister_id, canister_operation: Proposal.CanisterOperation): Bool {
+        let ?proposals = canisters.get(canister_id);
+        let last_proposal = proposals.get(proposals.size() - 1);
+        last_proposal.status == #approved
+        and
+        last_proposal.canister_operation == canister_operation 
+        and 
+        last_proposal.permission_change == ?#requireMultiSig
+    };
 }

@@ -4,7 +4,32 @@ import Principal "mo:base/Principal"
 
 module {
 
+    public type Proposal = {
+        canister_id: IC.canister_id;
+        seq: Nat;
+        proposer: Principal;
+        proposal_type: ProposalType;
+        permission_change: ?PermissionChange; // not null if proposal_type is permission
+        canister_operation: CanisterOperation;
+        status: ProposalStatus;
+        code: ?Blob; // not null if proposal_type is operation and canister_operation is #installCode or #upgradeCode or #reinstallCode
+        approvers: [Principal];
+        disapprovers: [Principal];
+        required_approvals: Nat;
+        total_voters: Nat;
+    };
+
     public type ProposalType = {
+        #permission;
+        #operation;
+    };
+
+    public type PermissionChange = {
+        #requireMultiSig;
+        #requireSingleSig;
+    };
+
+    public type CanisterOperation = {
         #installCode;
         #upgradeCode;
         #reinstallCode;
@@ -18,55 +43,46 @@ module {
         #pending;
         #approved;
         #disapproved;
-        #executed;
     };
 
-    public type Proposal = {
-        canister_id: IC.canister_id;
-        seq: Nat;
-        proposer: Principal;
-        proposal_type: ProposalType;
-        status: ProposalStatus;
-        content: ?Blob; // not null if type is #installCode or #upgradeCode or #reinstallCode
-        approvers: [Principal];
-        disapprovers: [Principal];
-        required_approvals: Nat;
-        total_voters: Nat;
-    };
-
-    let TYPES_REQUIRING_CONTENT = [
+    let OPS_REQUIRING_CODE = [
         #installCode,
         #upgradeCode,
         #reinstallCode,
     ];
 
     public func create_proposal(
+        canister_id: IC.canister_id,
         seq: Nat,
         proposer: Principal,
         proposal_type: ProposalType,
-        canister_id: IC.canister_id,
-        content: ?Blob,
+        permission_change: ?PermissionChange,
+        canister_operation: CanisterOperation,
+        code: ?Blob,
         required_approvals: Nat,
         total_voters: Nat
     ): Proposal {
-        assert(required_approvals > 0 and required_approvals <= total_voters);
-        if (content_required(proposal_type)) {
-            assert(content != null);
+        // no point to create a proposal if requiring only one approval
+        assert(required_approvals > 1 and required_approvals <= total_voters);
+        if (proposal_type == #permission) {
+            assert(permission_change != null);
         } else {
-            assert(content == null);
+            assert(permission_change == null);
         };
-        let status = if (required_approvals == 1) {
-            #approved
+        if (code_required(proposal_type, canister_operation)) {
+            assert(code != null);
         } else {
-            #pending
+            assert(code == null);
         };
         {
             canister_id = canister_id;
             seq = seq;
             proposer = proposer;
             proposal_type = proposal_type;
-            status = status;
-            content = content;
+            permission_change = permission_change;
+            canister_operation = canister_operation;
+            status = #pending;
+            code = code;
             approvers = [proposer];
             disapprovers = [];
             required_approvals = required_approvals;
@@ -78,7 +94,8 @@ module {
         assert(proposal.status == #pending);
         assert(not already_approved(approver, proposal));
         assert(not already_disapproved(approver, proposal));
-        let new_status: ProposalStatus = if (proposal.approvers.size() + 1 >= proposal.required_approvals) {
+        let new_approvers = Array.append(proposal.approvers, [approver]);
+        let new_status: ProposalStatus = if (new_approvers.size() >= proposal.required_approvals) {
             #approved
         } else {
             #pending
@@ -86,11 +103,13 @@ module {
         {
             canister_id = proposal.canister_id;
             seq = proposal.seq;
-            proposer = proposal.proposer;
             proposal_type = proposal.proposal_type;
+            permission_change = proposal.permission_change;
+            proposer = proposal.proposer;
+            canister_operation = proposal.canister_operation;
             status = new_status;
-            content = proposal.content;
-            approvers = Array.append(proposal.approvers, [approver]);
+            code = proposal.code;
+            approvers = new_approvers;
             disapprovers = proposal.disapprovers;
             required_approvals = proposal.required_approvals;
             total_voters = proposal.total_voters;
@@ -101,7 +120,8 @@ module {
         assert(proposal.status == #pending);
         assert(not already_approved(disapprover, proposal));
         assert(not already_disapproved(disapprover, proposal));
-        let new_status: ProposalStatus = if (proposal.disapprovers.size() + 1 > proposal.total_voters - proposal.required_approvals) {
+        let new_disapprovers = Array.append(proposal.disapprovers, [disapprover]);
+        let new_status: ProposalStatus = if (new_disapprovers.size() + proposal.required_approvals > proposal.total_voters) {
             #disapproved
         } else {
             #pending
@@ -111,19 +131,25 @@ module {
             seq = proposal.seq;
             proposer = proposal.proposer;
             proposal_type = proposal.proposal_type;
+            permission_change = proposal.permission_change;
+            canister_operation = proposal.canister_operation;
             status = new_status;
-            content = proposal.content;
+            code = proposal.code;
             approvers = proposal.approvers;
-            disapprovers = Array.append(proposal.disapprovers, [disapprover]);
+            disapprovers = new_disapprovers;
             required_approvals = proposal.required_approvals;
             total_voters = proposal.total_voters;
         };
     };
 
-    private func content_required(t: ProposalType): Bool {
-        switch(Array.find(TYPES_REQUIRING_CONTENT, func (a: ProposalType): Bool { a == t })) {
-            case (null) { false };
-            case (_) { true };
+    private func code_required(t: ProposalType, o: CanisterOperation): Bool {
+        if (t == #permission) {
+            false // code is NOT required if the proposal is about permission change
+        } else {
+            switch(Array.find(OPS_REQUIRING_CODE, func (a: CanisterOperation): Bool { a == o })) {
+                case (null) { false }; 
+                case (_) { true };
+            }
         }
     };
 
