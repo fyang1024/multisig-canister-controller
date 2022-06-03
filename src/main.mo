@@ -14,6 +14,7 @@ shared(msg) actor class () = self {
     private var canisters = TrieMap.TrieMap<IC.canister_id, Buffer.Buffer<Proposal.Proposal>>(Principal.equal, Principal.hash);
 
     private let CYCLE_LIMIT = 1_000_000_000_000;
+    private let ic: IC.Self = actor("aaaaa-aa");
 
     public func init(o: [Principal], m: Nat) {
         assert(m > 0 and m <= o.size());
@@ -47,7 +48,6 @@ shared(msg) actor class () = self {
             memory_allocation = null;
             compute_allocation = null;
         };
-        let ic: IC.Self = actor("aaaaa-aa");
         let result = await ic.create_canister({ settings = ?settings });
         canisters.put(result.canister_id, Buffer.Buffer<Proposal.Proposal>(3));
         result.canister_id
@@ -55,7 +55,6 @@ shared(msg) actor class () = self {
 
     public shared (msg) func install_code(code: Blob, canister_id: IC.canister_id): async () {
         check_before_operation(canister_id, #installCode, msg.caller);
-        let ic: IC.Self = actor("aaaaa-aa");
         await ic.install_code({ 
             arg = [];
             wasm_module = Blob.toArray(code);
@@ -64,21 +63,43 @@ shared(msg) actor class () = self {
         });
     };
 
+    public shared (msg) func upgrade_code(code: Blob, canister_id: IC.canister_id): async () {
+        check_before_operation(canister_id, #upgradeCode, msg.caller);
+        await ic.install_code({ 
+            arg = [];
+            wasm_module = Blob.toArray(code);
+            mode = #upgrade;
+            canister_id = canister_id;
+        });
+    };
+
+    public shared (msg) func reinstall_code(code: Blob, canister_id: IC.canister_id): async () {
+        check_before_operation(canister_id, #reinstallCode, msg.caller);
+        await ic.install_code({ 
+            arg = [];
+            wasm_module = Blob.toArray(code);
+            mode = #reinstall;
+            canister_id = canister_id;
+        });
+    };
+
+    public shared (msg) func uninstall_code(canister_id: IC.canister_id): async () {
+        check_before_operation(canister_id, #uninstallCode, msg.caller);
+        await ic.uninstall_code({ canister_id = canister_id });
+    };
+
     public shared (msg) func start_canister(canister_id: IC.canister_id): async () {
         check_before_operation(canister_id, #startCanister, msg.caller);
-        let ic: IC.Self = actor("aaaaa-aa");
         await ic.start_canister({ canister_id = canister_id });
     };
 
     public shared (msg) func stop_canister(canister_id: IC.canister_id): async () {
         check_before_operation(canister_id, #stopCanister, msg.caller);
-        let ic: IC.Self = actor("aaaaa-aa");
         await ic.stop_canister({ canister_id = canister_id });
     };
 
     public shared (msg) func delete_canister(canister_id: IC.canister_id): async () {
         check_before_operation(canister_id, #deleteCanister, msg.caller);
-        let ic: IC.Self = actor("aaaaa-aa");
         await ic.delete_canister({ canister_id = canister_id });
     };
 
