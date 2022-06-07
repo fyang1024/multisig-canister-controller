@@ -1,3 +1,10 @@
+type definite_canister_settings = 
+ record {
+   compute_allocation: nat;
+   controllers: vec principal;
+   freezing_threshold: nat;
+   memory_allocation: nat;
+ };
 type canister_id = principal;
 type ProposalType = 
  variant {
@@ -31,6 +38,19 @@ type PermissionChange =
    requireMultiSig;
    requireSingleSig;
  };
+type CanisterStatus = 
+ record {
+   cycles: nat;
+   freezing_threshold: nat;
+   memory_size: nat;
+   module_hash: opt vec nat8;
+   settings: definite_canister_settings;
+   status: variant {
+             running;
+             stopped;
+             stopping;
+           };
+ };
 type CanisterOperation = 
  variant {
    deleteCanister;
@@ -41,9 +61,16 @@ type CanisterOperation =
    uninstallCode;
    upgradeCode;
  };
+type Canister = 
+ record {
+   id: canister_id;
+   proposals: vec Proposal;
+ };
 service : {
   create_canister: () -> (canister_id);
   delete_canister: (canister_id) -> ();
+  get_canister_status: (canister_id) -> (CanisterStatus);
+  get_canisters: () -> (vec Canister) query;
   get_last_proposal: (canister_id) -> (opt Proposal) query;
   get_minimal_sigs: () -> (nat) query;
   get_owners: () -> (vec principal) query;

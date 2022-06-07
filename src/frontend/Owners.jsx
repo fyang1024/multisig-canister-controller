@@ -4,13 +4,11 @@ import { backend } from "../declarations/backend";
 const Owners = () => {
     const [owners, setOwners] = useState([]);
 
-    async function retrieveOwners() {
-        const owners = await backend.get_owners();
-        setOwners(owners);
-        console.log(owners);
-    }
-
     useEffect(() => {
+        const retrieveOwners = async () => {
+            const owners = await backend.get_owners();
+            setOwners(owners);
+        };
         retrieveOwners();
     }, []);
 

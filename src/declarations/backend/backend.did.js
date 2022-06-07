@@ -1,5 +1,23 @@
 export const idlFactory = ({ IDL }) => {
   const canister_id = IDL.Principal;
+  const definite_canister_settings = IDL.Record({
+    'freezing_threshold' : IDL.Nat,
+    'controllers' : IDL.Vec(IDL.Principal),
+    'memory_allocation' : IDL.Nat,
+    'compute_allocation' : IDL.Nat,
+  });
+  const CanisterStatus = IDL.Record({
+    'status' : IDL.Variant({
+      'stopped' : IDL.Null,
+      'stopping' : IDL.Null,
+      'running' : IDL.Null,
+    }),
+    'freezing_threshold' : IDL.Nat,
+    'memory_size' : IDL.Nat,
+    'cycles' : IDL.Nat,
+    'settings' : definite_canister_settings,
+    'module_hash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
   const ProposalStatus = IDL.Variant({
     'pending' : IDL.Null,
     'disapproved' : IDL.Null,
@@ -37,9 +55,15 @@ export const idlFactory = ({ IDL }) => {
     'approvers' : IDL.Vec(IDL.Principal),
     'code_hash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
+  const Canister = IDL.Record({
+    'id' : canister_id,
+    'proposals' : IDL.Vec(Proposal),
+  });
   const MultisigCanisterController = IDL.Service({
     'create_canister' : IDL.Func([], [canister_id], []),
     'delete_canister' : IDL.Func([canister_id], [], []),
+    'get_canister_status' : IDL.Func([canister_id], [CanisterStatus], []),
+    'get_canisters' : IDL.Func([], [IDL.Vec(Canister)], ['query']),
     'get_last_proposal' : IDL.Func(
         [canister_id],
         [IDL.Opt(Proposal)],

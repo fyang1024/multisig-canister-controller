@@ -1,4 +1,5 @@
 import type { Principal } from '@dfinity/principal';
+export interface Canister { 'id' : canister_id, 'proposals' : Array<Proposal> }
 export type CanisterOperation = { 'stopCanister' : null } |
   { 'upgradeCode' : null } |
   { 'installCode' : null } |
@@ -6,9 +7,21 @@ export type CanisterOperation = { 'stopCanister' : null } |
   { 'uninstallCode' : null } |
   { 'startCanister' : null } |
   { 'deleteCanister' : null };
+export interface CanisterStatus {
+  'status' : { 'stopped' : null } |
+    { 'stopping' : null } |
+    { 'running' : null },
+  'freezing_threshold' : bigint,
+  'memory_size' : bigint,
+  'cycles' : bigint,
+  'settings' : definite_canister_settings,
+  'module_hash' : [] | [Array<number>],
+}
 export interface MultisigCanisterController {
   'create_canister' : () => Promise<canister_id>,
   'delete_canister' : (arg_0: canister_id) => Promise<undefined>,
+  'get_canister_status' : (arg_0: canister_id) => Promise<CanisterStatus>,
+  'get_canisters' : () => Promise<Array<Canister>>,
   'get_last_proposal' : (arg_0: canister_id) => Promise<[] | [Proposal]>,
   'get_minimal_sigs' : () => Promise<bigint>,
   'get_owners' : () => Promise<Array<Principal>>,
@@ -58,4 +71,10 @@ export type ProposalStatus = { 'pending' : null } |
 export type ProposalType = { 'permission' : null } |
   { 'operation' : null };
 export type canister_id = Principal;
+export interface definite_canister_settings {
+  'freezing_threshold' : bigint,
+  'controllers' : Array<Principal>,
+  'memory_allocation' : bigint,
+  'compute_allocation' : bigint,
+}
 export interface _SERVICE extends MultisigCanisterController {}

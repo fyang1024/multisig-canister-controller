@@ -9,6 +9,20 @@ import Cycles "mo:base/ExperimentalCycles";
 
 shared(msg) actor class MultisigCanisterController() = self {
 
+    public type Canister = {
+        id: IC.canister_id;
+        proposals: [Proposal.Proposal];
+    };
+
+    public type CanisterStatus = {
+        status : { #stopped; #stopping; #running };
+        freezing_threshold : Nat;
+        memory_size : Nat;
+        cycles : Nat;
+        settings : IC.definite_canister_settings;
+        module_hash : ?[Nat8];
+    };
+
     private var owners: [Principal] = [];
     private var minimal_sigs: Nat = 0;
     private var canisters = TrieMap.TrieMap<IC.canister_id, Buffer.Buffer<Proposal.Proposal>>(Principal.equal, Principal.hash);
@@ -30,12 +44,35 @@ shared(msg) actor class MultisigCanisterController() = self {
         minimal_sigs
     };
 
+    public query func get_canisters(): async [Canister] {
+        let buf = Buffer.Buffer<Canister>(canisters.size());
+        for((k, v) in canisters.entries()) {
+            buf.add({
+                id = k;
+                proposals = v.toArray();
+            });
+        };
+        buf.toArray()
+    };
+
     public query func get_last_proposal(canister_id: IC.canister_id): async ?Proposal.Proposal {
         switch (canisters.get(canister_id)) {
             case (null) { null };
             case (?proposals) { 
                 if (proposals.size() == 0) { null } else { proposals.getOpt(proposals.size() - 1) }
             }
+        }
+    };
+
+    public func get_canister_status(canister_id: IC.canister_id): async CanisterStatus {
+        let s = await ic.canister_status({ canister_id = canister_id });
+        {
+            status = s.status;
+            freezing_threshold = s.freezing_threshold;
+            memory_size = s.memory_size;
+            cycles = s.cycles;
+            settings = s.settings;
+            module_hash = s.module_hash;
         }
     };
 
@@ -86,6 +123,7 @@ shared(msg) actor class MultisigCanisterController() = self {
     public shared (msg) func delete_canister(canister_id: IC.canister_id): async () {
         check_before_operation(canister_id, #deleteCanister, msg.caller);
         await ic.delete_canister({ canister_id = canister_id });
+        canisters.delete(canister_id);
     };
 
     public shared (msg) func propose(
@@ -195,23 +233,43 @@ shared(msg) actor class MultisigCanisterController() = self {
         canister_operation: Proposal.CanisterOperation,
         caller: Principal
     ) {
-        assert(canister_exists(canister_id));
-        assert(no_proposal(canister_id) or not last_proposal_pending(canister_id));
+        switch (canisters.get(canister_id)) {
+            case (null) { assert(false) };
+            case (?proposals) { 
+                if (proposals.size() > 0) {
+                    assert(proposals.get(proposals.size() - 1).status != #pending);
+                }
+            }
+        };
         assert(not requires_multisig(canister_id, canister_operation));
         assert(is_one_of_owners(msg.caller));
     };
 
     private func check_before_vote(canister_id: IC.canister_id, caller: Principal) {
-        assert(canister_exists(canister_id));
+        switch (canisters.get(canister_id)) {
+            case (null) { assert(false) };
+            case (?proposals) { 
+                if (proposals.size() > 0) {
+                    assert(proposals.get(proposals.size() - 1).status == #pending);
+                } else { 
+                    assert(false); // no proposal to vote for/against
+                }
+            }
+        };
         assert(is_one_of_owners(msg.caller));
-        assert(last_proposal_pending(canister_id));
     };
 
     private func check_before_propose(canister_id: IC.canister_id) {
-        assert(canister_exists(canister_id));
-        assert(is_one_of_owners(msg.caller));
         // make sure either there is no proposal yet, or last proposal is not pending
-        assert(no_proposal(canister_id) or not last_proposal_pending(canister_id));
+        switch (canisters.get(canister_id)) {
+            case (null) { assert(false); };
+            case (?proposals) { 
+                if (proposals.size() > 0) {
+                    assert(proposals.get(proposals.size() - 1).status != #pending);
+                }
+            }
+        };
+        assert(is_one_of_owners(msg.caller));
     };
 
     private func is_one_of_owners(p: Principal): Bool {
@@ -221,33 +279,10 @@ shared(msg) actor class MultisigCanisterController() = self {
         }
     };
 
-    private func canister_exists(canister_id: IC.canister_id): Bool {
-        switch(canisters.get(canister_id)) {
-            case (null) { false };
-            case (_) { true };
-        }
-    };
-
-    private func no_proposal(canister_id: IC.canister_id): Bool {
-        switch (canisters.get(canister_id)) {
-            case (null) { true };
-            case (?proposals) { proposals.size() == 0 }
-        }
-    };
-
     private func get_next_proposal_seq(canister_id: IC.canister_id): Nat {
         switch (canisters.get(canister_id)) {
             case (null) { 0 };
             case (?proposals) { proposals.size() }
-        }
-    };
-
-    private func last_proposal_pending(canister_id: IC.canister_id): Bool {
-        switch (canisters.get(canister_id)) {
-            case (?proposals) { 
-                proposals.size() > 0 and proposals.get(proposals.size() - 1).status == #pending
-            };
-            case (_) { false }
         }
     };
 
@@ -270,13 +305,17 @@ shared(msg) actor class MultisigCanisterController() = self {
 
     private func requires_multisig(canister_id: IC.canister_id, canister_operation: Proposal.CanisterOperation): Bool {
         switch (canisters.get(canister_id)) {
-            case (?proposals) { 
-                let last_proposal = proposals.get(proposals.size() - 1);
-                last_proposal.status == #approved
-                and
-                last_proposal.canister_operation == canister_operation 
-                and 
-                last_proposal.permission_change == ?#requireMultiSig
+            case (?proposals) {
+                if (proposals.size() > 0) {
+                    let last_proposal = proposals.get(proposals.size() - 1);
+                    last_proposal.status == #approved
+                    and
+                    last_proposal.canister_operation == canister_operation 
+                    and 
+                    last_proposal.permission_change == ?#requireMultiSig
+                } else {
+                    false
+                }
             };
             case (null) { false }
         }
