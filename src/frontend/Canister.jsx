@@ -10,7 +10,6 @@ const Canister = (props) => {
         const retrieveCanisterStatus = async () => {
             const status = await backend.get_canister_status(canister.id);
             setStatus(status);
-            console.log(status);
         };
         retrieveCanisterStatus();
     }, [canister.id]);

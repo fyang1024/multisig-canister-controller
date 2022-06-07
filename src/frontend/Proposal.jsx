@@ -5,9 +5,9 @@ const Proposal = (props) => {
 
     return (
         <>
-            <div>Proposal: {proposal.proposer.toString()}</div>
+            <div>Proposer: {proposal.proposer.toString()}</div>
             <div>Type: {Object.keys(proposal.proposal_type)[0]}</div>
-            {proposal.permission_change && <div>Permission Change: {Object.keys(proposal.permission_change)[0]}</div>}
+            {proposal.permission_change && <div>Permission Change: {Object.keys(proposal.permission_change[0])[0]}</div>}
             <div>Operation: {Object.keys(proposal.canister_operation)[0]}</div>
             <div>Status: {Object.keys(proposal.status)[0]}</div>
             <div>Total Voters: {proposal.total_voters.toString()}</div>
