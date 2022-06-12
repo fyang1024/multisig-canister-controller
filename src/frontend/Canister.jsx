@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { backend } from "../declarations/backend";
+import React, { useState, useEffect, useContext } from 'react';
+import { IdentityContext } from './IdentityContext';
 import Proposals from './Proposals';
 
 const Canister = (props) => {
     const { canister } = props;
     const [status, setStatus] = useState();
+    const { actor } = useContext(IdentityContext);
 
     useEffect(() => {
         const retrieveCanisterStatus = async () => {
-            const status = await backend.get_canister_status(canister.id);
+            const status = await actor.get_canister_status(canister.id);
             setStatus(status);
         };
         retrieveCanisterStatus();
-    }, [canister.id]);
+    }, [actor, canister.id]);
 
     if (status) {
         return <li>
