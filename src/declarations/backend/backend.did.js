@@ -29,11 +29,13 @@ export const idlFactory = ({ IDL }) => {
   });
   const CanisterOperation = IDL.Variant({
     'stopCanister' : IDL.Null,
+    'removeOwner' : IDL.Null,
     'upgradeCode' : IDL.Null,
     'installCode' : IDL.Null,
     'reinstallCode' : IDL.Null,
     'uninstallCode' : IDL.Null,
     'startCanister' : IDL.Null,
+    'addOwner' : IDL.Null,
     'deleteCanister' : IDL.Null,
   });
   const ProposalType = IDL.Variant({
@@ -44,6 +46,7 @@ export const idlFactory = ({ IDL }) => {
     'seq' : IDL.Nat,
     'status' : ProposalStatus,
     'permission_change' : IDL.Opt(PermissionChange),
+    'owner' : IDL.Opt(IDL.Principal),
     'code' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'canister_id' : canister_id,
     'required_approvals' : IDL.Nat,
@@ -80,6 +83,7 @@ export const idlFactory = ({ IDL }) => {
           CanisterOperation,
           canister_id,
           IDL.Opt(IDL.Vec(IDL.Nat8)),
+          IDL.Opt(IDL.Principal),
         ],
         [],
         ['oneway'],

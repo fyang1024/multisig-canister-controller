@@ -8,11 +8,12 @@ const Canisters = () => {
     const [canisters, setCanisters] = useState([]);
     const { identity, actor } = useContext(IdentityContext);
 
+    const retrieveCanisters = async () => {
+        const canisters = await actor.get_canisters();
+        setCanisters(canisters);
+    };
+
     useEffect(() => {
-        const retrieveCanisters = async () => {
-            const canisters = await actor.get_canisters();
-            setCanisters(canisters);
-        };
         retrieveCanisters();
     }, []);
 
@@ -20,6 +21,7 @@ const Canisters = () => {
         try {
             setProcessing(true);
             await actor.create_canister();
+            await retrieveCanisters();
             setProcessing(false);
         } catch(e) {
             setProcessing(false);
@@ -29,7 +31,7 @@ const Canisters = () => {
 
     return (
         <>
-            {error && <p>Error: {error.toString()}</p>}
+            {error && <p>{error.toString()}</p>}
             <h1>Canisters {identity && <button disabled={processing} onClick={createCanister}>Create new canister</button>}</h1>
             <ul>{canisters.map(canister => (<Canister key={canister.id} canister={canister} />))}</ul>
         </>

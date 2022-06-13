@@ -13,21 +13,12 @@ const Owners = () => {
         retrieveOwners();
     }, [actor]);
 
-    if (owners && owners.length) {
-        return (
-            <>
-                <h1>Owners</h1>
-                <ul>{owners.map(owner => (<li key={owner}>{owner.toString()}</li>))}</ul>
-            </>
-        );
-    } else {
-        return (
-            <>
-                <h1>Owners</h1>
-                <div>Loading...</div>
-            </>
-        );
-    }
+    return (
+        <>
+            <h1>Owners</h1>
+            <ul>{owners.map(owner => (<li key={owner}>{owner.toString()}</li>))}</ul>
+        </>
+    );
 }
 
 export default Owners;

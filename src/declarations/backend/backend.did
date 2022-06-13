@@ -25,6 +25,7 @@ type Proposal =
    code: opt blob;
    code_hash: opt vec nat8;
    disapprovers: vec principal;
+   owner: opt principal;
    permission_change: opt PermissionChange;
    proposal_type: ProposalType;
    proposer: principal;
@@ -50,7 +51,7 @@ type MultisigCanisterController =
    init: (vec principal, nat) -> () oneway;
    install_code: (blob, canister_id) -> ();
    propose: (ProposalType, opt PermissionChange, CanisterOperation,
-    canister_id, opt blob) -> () oneway;
+    canister_id, opt blob, opt principal) -> () oneway;
    reinstall_code: (blob, canister_id) -> ();
    start_canister: (canister_id) -> ();
    stop_canister: (canister_id) -> ();
@@ -74,9 +75,11 @@ type CanisterStatus =
  };
 type CanisterOperation = 
  variant {
+   addOwner;
    deleteCanister;
    installCode;
    reinstallCode;
+   removeOwner;
    startCanister;
    stopCanister;
    uninstallCode;

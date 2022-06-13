@@ -18,6 +18,7 @@ const LoginLogout = () => {
             maxTimeToLive: BigInt(24) * BigInt(3_600_000_000_000),
             onSuccess: async () => {
                 const identity = await authClient.getIdentity();
+                console.log("identity", identity.getPrincipal().toString());
                 setIdentity(identity);
                 agent = new HttpAgent({ identity });
                 if (process.env.NODE_ENV !== "production") {

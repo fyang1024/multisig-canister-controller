@@ -21,6 +21,7 @@ module {
         disapprovers: [Principal];
         required_approvals: Nat;
         total_voters: Nat;
+        owner: ?Principal; // not null only if proposal_type is operation and canister_operation is #addOwner or #removeOwner
     };
 
     public type ProposalType = {
@@ -41,6 +42,8 @@ module {
 		#startCanister;
 		#stopCanister;
 		#deleteCanister;
+        #addOwner;
+        #removeOwner;
 	};
 
     public type ProposalStatus = {
@@ -64,7 +67,8 @@ module {
         canister_operation: CanisterOperation,
         code: ?Blob,
         required_approvals: Nat,
-        total_voters: Nat
+        total_voters: Nat,
+        owner: ?Principal
     ): Proposal {
         // no point to create a proposal if requiring only one approval
         assert(required_approvals > 1 and required_approvals <= total_voters);
@@ -96,6 +100,7 @@ module {
             disapprovers = [];
             required_approvals = required_approvals;
             total_voters = total_voters;
+            owner = owner;
         };
     };
 
@@ -123,6 +128,7 @@ module {
             disapprovers = proposal.disapprovers;
             required_approvals = proposal.required_approvals;
             total_voters = proposal.total_voters;
+            owner = proposal.owner;
         };
     };
 
@@ -150,10 +156,11 @@ module {
             disapprovers = new_disapprovers;
             required_approvals = proposal.required_approvals;
             total_voters = proposal.total_voters;
+            owner = proposal.owner;
         };
     };
 
-    private func append<T>(a: [T], e: T): [T] {
+    public func append<T>(a: [T], e: T): [T] {
         let buf = Buffer.Buffer<T>(a.size() + 1);
         for (i in a.vals()) {
             buf.add(i);

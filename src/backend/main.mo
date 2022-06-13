@@ -131,7 +131,8 @@ shared(msg) actor class MultisigCanisterController() = self {
         permission_change: ?Proposal.PermissionChange,
         canister_operation: Proposal.CanisterOperation, 
         canister_id: IC.canister_id, 
-        code: ?Blob
+        code: ?Blob,
+        owner: ?Principal
     ) {
         check_before_propose(canister_id);
         let proposal = Proposal.create_proposal(
@@ -143,7 +144,8 @@ shared(msg) actor class MultisigCanisterController() = self {
             canister_operation,
             code,
             minimal_sigs,
-            owners.size()
+            owners.size(),
+            owner
         );
         switch (canisters.get(canister_id)) {
             case null {};
@@ -195,6 +197,22 @@ shared(msg) actor class MultisigCanisterController() = self {
                         };
                         case (#deleteCanister) {
                             await ic.delete_canister({ canister_id = proposal.canister_id })
+                        };
+                        case (#addOwner) {
+                            switch (proposal.owner) {
+                                case (?owner) {
+                                    owners := Proposal.append<Principal>(owners, owner);
+                                };
+                                case (null) {}
+                            }
+                        };
+                        case (#removeOwner) {
+                            switch (proposal.owner) {
+                                case (?owner) {
+                                    owners := removeOwner(owners, owner);
+                                };
+                                case (null) {}
+                            }
                         };
                     };
                 };
@@ -320,4 +338,14 @@ shared(msg) actor class MultisigCanisterController() = self {
             case (null) { false }
         }
     };
+
+    private func removeOwner(a: [Principal], e: Principal): [Principal] {
+        let buf = Buffer.Buffer<Principal>(a.size());
+        for (i in a.vals()) {
+            if (not Principal.equal(i, e)) {
+                buf.add(i);
+            };
+        };
+        buf.toArray();
+    }
 }

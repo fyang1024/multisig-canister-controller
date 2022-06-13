@@ -1,11 +1,13 @@
 import type { Principal } from '@dfinity/principal';
 export interface Canister { 'id' : canister_id, 'proposals' : Array<Proposal> }
 export type CanisterOperation = { 'stopCanister' : null } |
+  { 'removeOwner' : null } |
   { 'upgradeCode' : null } |
   { 'installCode' : null } |
   { 'reinstallCode' : null } |
   { 'uninstallCode' : null } |
   { 'startCanister' : null } |
+  { 'addOwner' : null } |
   { 'deleteCanister' : null };
 export interface CanisterStatus {
   'status' : { 'stopped' : null } |
@@ -35,6 +37,7 @@ export interface MultisigCanisterController {
       arg_2: CanisterOperation,
       arg_3: canister_id,
       arg_4: [] | [Array<number>],
+      arg_5: [] | [Principal],
     ) => Promise<undefined>,
   'reinstall_code' : (arg_0: Array<number>, arg_1: canister_id) => Promise<
       undefined
@@ -54,6 +57,7 @@ export interface Proposal {
   'seq' : bigint,
   'status' : ProposalStatus,
   'permission_change' : [] | [PermissionChange],
+  'owner' : [] | [Principal],
   'code' : [] | [Array<number>],
   'canister_id' : canister_id,
   'required_approvals' : bigint,

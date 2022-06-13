@@ -12,8 +12,10 @@
     "@dfinity/auth-client": "^0.11.3",
     "@dfinity/authentication": "^0.11.3",
     "@dfinity/identity": "^0.11.3",
+    "js-sha256": "^0.9.0",
     "react": "^18.1.0",
-    "react-dom": "^18.1.0"
+    "react-dom": "^18.1.0",
+    "use-file-picker": "^1.4.2"
   },
   "devDependencies": {
     "@dfinity/agent": "0.11.3",
